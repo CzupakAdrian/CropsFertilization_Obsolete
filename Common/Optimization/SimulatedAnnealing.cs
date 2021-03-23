@@ -1,8 +1,10 @@
 ﻿using System;
+using Common.DataStructures.Coordinates;
+using Common.Debugging;
 
 namespace Common.Optimization
 {
-    public abstract class SimulatedAnnealing<State, ProblemData>
+    public abstract class SimulatedAnnealing
     {
         private const double MINIMAL_TEMPERATURE = 0.0001;
         private const int INITIAL_ITERATION = 0;
@@ -11,10 +13,7 @@ namespace Common.Optimization
         private int maxNumOfIterations;
         private double initialTemperature;
         private double alpha;
-        private Random random;
-
-        private State bestState;
-        private double bestEnergy;
+        protected Random random;
 
         public SimulatedAnnealing(int maxNumOfIterations, double initialTemperature, double alpha)
         {
@@ -23,22 +22,21 @@ namespace Common.Optimization
             this.initialTemperature = initialTemperature;
             this.alpha = alpha;
         }
-        public void Optimize(ProblemData problemData)
+
+        public Route Optimize(PointsSetBase problem)
         {
             try
             {
-                State state = RandomState(problemData);
-                double energy = Energy(state, problemData);
-                bestState = state;
-                bestEnergy = energy;
-                State adjState;
-                double adjEnergy;
+                Route state = GenerateInitialState(problem);
+                double energy = CalculateEnergy(state, problem);
+                Route bestState = state;
+                double bestEnergy = energy;
                 int iteration = INITIAL_ITERATION;
                 double currTemp = initialTemperature;
-                while (iteration < maxNumOfIterations && currTemp > MINIMAL_TEMPERATURE)
+                while (!TerminationConditionFulfilled(iteration, currTemp))
                 {
-                    adjState = AdjacentState(state, problemData);
-                    adjEnergy = Energy(adjState, problemData);
+                    Route adjState = GenerateAdjacentState(state, problem);
+                    double adjEnergy = CalculateEnergy(adjState, problem);
                     if (adjEnergy < bestEnergy)
                     {
                         bestState = adjState;
@@ -50,23 +48,25 @@ namespace Common.Optimization
                         energy = adjEnergy;
                     }
                     currTemp *= alpha;
-                    ++iteration;
+                    iteration++;
                 }
+                return bestState;
             }
             catch (Exception ex)
             {
-                Console.WriteLine(ex.Message);
-                Console.ReadLine();
+                Logger.PrintSysLog(ex.Message);
+                return default;
             }
         }
-        public State GetOptimalState()
-        {
-            return bestState;
-        }
 
-        protected abstract State RandomState(ProblemData problemData);
-        protected abstract State AdjacentState(State currState, ProblemData problemData);
-        protected abstract double Energy(State state, ProblemData problemData);
+        protected abstract Route GenerateInitialState(PointsSetBase problem);
+        protected abstract Route GenerateAdjacentState(Route currState, PointsSetBase problem);
+        protected abstract double CalculateEnergy(Route state, PointsSetBase problem);
+
+        private bool TerminationConditionFulfilled(int iteration, double currTemp)
+        {
+            return iteration >= maxNumOfIterations || currTemp <= MINIMAL_TEMPERATURE;
+        }
         private double AcceptanceProb(double energy, double adjEnergy, double currTemp)
         {
             if (adjEnergy < energy)
